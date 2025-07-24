@@ -1,6 +1,6 @@
 import { Navbar } from "@/components/navbar"
 import { HeroSection } from "@/components/hero-section"
-import { MetaGenerator } from "@/components/meta-generator"
+import { SimpleMediaDownloader } from "@/components/simple-media-downloader"
 import { Footer } from "@/components/footer"
 
 export default function HomePage() {
@@ -8,7 +8,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <HeroSection />
-      <MetaGenerator />
+      <SimpleMediaDownloader />
       <Footer />
     </div>
   )

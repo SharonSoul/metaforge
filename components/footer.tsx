@@ -4,51 +4,56 @@ export function Footer() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-4">
-            <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              MetaForge
+            <div className="text-2xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+              MediaForge
             </div>
             <p className="text-sm text-muted-foreground">
-              AI-powered meta title and description generator for better SEO.
+              Download videos, images, and media from Instagram and TikTok for free.
             </p>
           </div>
 
           <div>
-            <h3 className="font-semibold mb-4">Product</h3>
+            <h3 className="font-semibold mb-4">Platforms</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <a href="#features" className="hover:text-foreground transition-colors">
-                  Features
+                <a href="#instagram" className="hover:text-foreground transition-colors">
+                  Instagram Downloader
                 </a>
               </li>
               <li>
-                <a href="#pricing" className="hover:text-foreground transition-colors">
-                  Pricing
+                <a href="#tiktok" className="hover:text-foreground transition-colors">
+                  TikTok Downloader
                 </a>
               </li>
               <li>
                 <a href="#" className="hover:text-foreground transition-colors">
-                  API
+                  Coming Soon: YouTube
                 </a>
               </li>
             </ul>
           </div>
 
           <div>
-            <h3 className="font-semibold mb-4">Company</h3>
+            <h3 className="font-semibold mb-4">Media Types</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
                 <a href="#" className="hover:text-foreground transition-colors">
-                  About
+                  Videos & Reels
                 </a>
               </li>
               <li>
                 <a href="#" className="hover:text-foreground transition-colors">
-                  Contact
+                  Images & Carousels
                 </a>
               </li>
               <li>
                 <a href="#" className="hover:text-foreground transition-colors">
-                  Blog
+                  Stories & Highlights
+                </a>
+              </li>
+              <li>
+                <a href="#" className="hover:text-foreground transition-colors">
+                  Profile Pictures
                 </a>
               </li>
             </ul>
@@ -59,17 +64,22 @@ export function Footer() {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
                 <a href="#" className="hover:text-foreground transition-colors">
-                  Privacy
+                  Privacy Policy
                 </a>
               </li>
               <li>
                 <a href="#" className="hover:text-foreground transition-colors">
-                  Terms
+                  Terms of Service
                 </a>
               </li>
               <li>
                 <a href="#" className="hover:text-foreground transition-colors">
-                  Support
+                  DMCA
+                </a>
+              </li>
+              <li>
+                <a href="#" className="hover:text-foreground transition-colors">
+                  Contact
                 </a>
               </li>
             </ul>
@@ -77,7 +87,10 @@ export function Footer() {
         </div>
 
         <div className="border-t mt-8 pt-8 text-center text-sm text-muted-foreground">
-          <p>&copy; 2024 MetaForge. All rights reserved.</p>
+          <p>&copy; 2024 MediaForge. All rights reserved.</p>
+          <p className="mt-2">
+            Disclaimer: This tool is for personal use only. Please respect copyright and platform terms of service.
+          </p>
         </div>
       </div>
     </footer>

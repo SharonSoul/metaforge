@@ -4,7 +4,16 @@ import { generateText } from "ai"
 import { openai } from "@ai-sdk/openai"
 import { neon } from "@neondatabase/serverless"
 
-const sql = neon(process.env.DATABASE_URL!)
+// Validate environment variables
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error("OPENAI_API_KEY environment variable is required")
+}
+
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is required")
+}
+
+const sql = neon(process.env.DATABASE_URL)
 
 interface GenerateMetaParams {
   inputType: "url" | "manual"
@@ -18,6 +27,14 @@ export async function generateMetaTags(params: GenerateMetaParams) {
   try {
     const { inputType, content, keyword, tone, pageType } = params
 
+    // Validate input
+    if (!content || content.trim().length === 0) {
+      return {
+        success: false,
+        error: "Content is required to generate meta tags.",
+      }
+    }
+
     // Create the prompt based on input type
     let prompt = ""
 
@@ -27,8 +44,8 @@ export async function generateMetaTags(params: GenerateMetaParams) {
       prompt = `Generate SEO-optimized meta tags for a ${pageType || "web page"} about: ${content}`
     }
 
-    if (keyword) {
-      prompt += `\nFocus keyword: ${keyword}`
+    if (keyword && keyword.trim()) {
+      prompt += `\nFocus keyword: ${keyword.trim()}`
     }
 
     prompt += `\nTone: ${tone}`
@@ -36,7 +53,7 @@ export async function generateMetaTags(params: GenerateMetaParams) {
 1. A meta title (50-60 characters max)
 2. A meta description (140-160 characters max)
 
-Format your response as JSON with "title" and "description" fields.`
+Format your response as JSON with "title" and "description" fields only. Do not include any other text.`
 
     const { text } = await generateText({
       model: openai("gpt-4o-mini"),
@@ -47,28 +64,53 @@ Format your response as JSON with "title" and "description" fields.`
     // Parse the AI response
     let parsedResponse
     try {
-      // Try to extract JSON from the response
-      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      // Clean the response and extract JSON
+      const cleanedText = text.trim()
+      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/)
+
       if (jsonMatch) {
         parsedResponse = JSON.parse(jsonMatch[0])
       } else {
         // Fallback parsing if JSON is not properly formatted
-        const titleMatch = text.match(/title['":\s]*([^"\n]+)/i)
-        const descMatch = text.match(/description['":\s]*([^"\n]+)/i)
+        const lines = cleanedText.split("\n")
+        let title = ""
+        let description = ""
+
+        for (const line of lines) {
+          if (line.toLowerCase().includes("title") && !title) {
+            title = line
+              .replace(/.*title['":\s]*([^"\n]+).*/i, "$1")
+              .replace(/['"]/g, "")
+              .trim()
+          }
+          if (line.toLowerCase().includes("description") && !description) {
+            description = line
+              .replace(/.*description['":\s]*([^"\n]+).*/i, "$1")
+              .replace(/['"]/g, "")
+              .trim()
+          }
+        }
 
         parsedResponse = {
-          title: titleMatch ? titleMatch[1].replace(/['"]/g, "").trim() : "SEO Optimized Title",
-          description: descMatch
-            ? descMatch[1].replace(/['"]/g, "").trim()
-            : "SEO optimized description for better search rankings.",
+          title: title || "SEO Optimized Title",
+          description: description || "SEO optimized description for better search rankings.",
         }
       }
     } catch (parseError) {
+      console.error("Parse error:", parseError)
       // Fallback if parsing fails
       parsedResponse = {
         title: "SEO Optimized Title",
         description: "SEO optimized description for better search rankings and user engagement.",
       }
+    }
+
+    // Ensure we have valid strings
+    if (typeof parsedResponse.title !== "string") {
+      parsedResponse.title = "SEO Optimized Title"
+    }
+    if (typeof parsedResponse.description !== "string") {
+      parsedResponse.description = "SEO optimized description for better search rankings."
     }
 
     // Ensure character limits
@@ -79,20 +121,20 @@ Format your response as JSON with "title" and "description" fields.`
       parsedResponse.description = parsedResponse.description.substring(0, 157) + "..."
     }
 
-    // Store generation in database (optional - for analytics)
+    // Store generation in database with better error handling
     try {
       await sql`
         INSERT INTO generations (
           user_email, input_type, input_content, focus_keyword, tone, 
           generated_title, generated_description
         ) VALUES (
-          'anonymous@metaforge.com', ${inputType}, ${content}, ${keyword || ""}, 
+          'anonymous@metaforge.com', ${inputType}, ${content.substring(0, 1000)}, ${(keyword || "").substring(0, 255)}, 
           ${tone}, ${parsedResponse.title}, ${parsedResponse.description}
         )
       `
     } catch (dbError) {
       console.error("Database error:", dbError)
-      // Continue even if DB insert fails
+      // Continue even if DB insert fails - don't break the user experience
     }
 
     return {
@@ -101,6 +143,23 @@ Format your response as JSON with "title" and "description" fields.`
     }
   } catch (error) {
     console.error("Generation error:", error)
+
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      if (error.message.includes("API key")) {
+        return {
+          success: false,
+          error: "API configuration error. Please try again later.",
+        }
+      }
+      if (error.message.includes("rate limit")) {
+        return {
+          success: false,
+          error: "Service is busy. Please try again in a moment.",
+        }
+      }
+    }
+
     return {
       success: false,
       error: "Failed to generate meta tags. Please try again.",

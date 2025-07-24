@@ -1,6 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { Inter } from 'next/font/google'
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
@@ -8,11 +8,12 @@ import { Toaster } from "@/components/ui/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "MetaForge - AI-Powered Meta Title & Description Generator",
+  title: "MediaForge - Professional Social Media Downloader",
   description:
-    "Generate SEO-optimized meta titles and descriptions with AI in seconds. Perfect for websites, blogs, and landing pages.",
-  keywords: "SEO, meta tags, meta title, meta description, AI generator, SEO tools",
-    generator: 'v0.dev'
+    "Download videos, images, stories, and profile pictures from Instagram and TikTok using professional third-party services. High quality, fast, and reliable downloads.",
+  keywords:
+    "instagram downloader, tiktok downloader, video downloader, social media downloader, instagram video, tiktok video, tikwm, professional downloader",
+  generator: "v0.dev",
 }
 
 export default function RootLayout({

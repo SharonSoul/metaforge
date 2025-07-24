@@ -15,8 +15,8 @@ export function Navbar() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <div className="flex items-center">
-            <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              MetaForge
+            <div className="text-2xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+              MediaForge
             </div>
           </div>
 
@@ -25,14 +25,14 @@ export function Navbar() {
             <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
               Features
             </a>
-            <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">
-              Pricing
+            <a href="#how-to" className="text-muted-foreground hover:text-foreground transition-colors">
+              How to Use
             </a>
             <a href="#faq" className="text-muted-foreground hover:text-foreground transition-colors">
               FAQ
             </a>
             <Button variant="ghost" size="sm">
-              Login
+              Support
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -56,14 +56,14 @@ export function Navbar() {
             <a href="#features" className="block py-2 text-muted-foreground hover:text-foreground transition-colors">
               Features
             </a>
-            <a href="#pricing" className="block py-2 text-muted-foreground hover:text-foreground transition-colors">
-              Pricing
+            <a href="#how-to" className="block py-2 text-muted-foreground hover:text-foreground transition-colors">
+              How to Use
             </a>
             <a href="#faq" className="block py-2 text-muted-foreground hover:text-foreground transition-colors">
               FAQ
             </a>
             <Button variant="ghost" size="sm" className="w-full justify-start">
-              Login
+              Support
             </Button>
           </div>
         )}

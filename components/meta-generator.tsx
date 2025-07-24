@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Copy, RefreshCw, Sparkles, Download } from "lucide-react"
+import { Copy, RefreshCw, Sparkles, Download, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { generateMetaTags } from "@/app/actions/generate-meta"
 
@@ -27,9 +27,12 @@ export function MetaGenerator() {
   const [generatedMeta, setGeneratedMeta] = useState<GeneratedMeta | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationsUsed, setGenerationsUsed] = useState(0)
+  const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
 
   const handleGenerate = async () => {
+    setError(null)
+
     if (generationsUsed >= 3) {
       toast({
         title: "Generation limit reached",
@@ -39,10 +42,24 @@ export function MetaGenerator() {
       return
     }
 
-    if (!content.trim() && !url.trim()) {
+    const currentInput = inputType === "url" ? url.trim() : content.trim()
+
+    if (!currentInput) {
+      setError("Please provide either a URL or content description.")
       toast({
         title: "Input required",
         description: "Please provide either a URL or content description.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Basic URL validation if URL input is selected
+    if (inputType === "url" && !isValidUrl(url)) {
+      setError("Please enter a valid URL (e.g., https://example.com)")
+      toast({
+        title: "Invalid URL",
+        description: "Please enter a valid URL starting with http:// or https://",
         variant: "destructive",
       })
       return
@@ -53,8 +70,8 @@ export function MetaGenerator() {
     try {
       const result = await generateMetaTags({
         inputType,
-        content: inputType === "url" ? url : content,
-        keyword,
+        content: currentInput,
+        keyword: keyword.trim(),
         tone,
         pageType,
       })
@@ -70,13 +87,24 @@ export function MetaGenerator() {
         throw new Error(result.error || "Failed to generate meta tags")
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Please try again in a moment."
+      setError(errorMessage)
       toast({
         title: "Generation failed",
-        description: "Please try again in a moment.",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  const isValidUrl = (string: string) => {
+    try {
+      new URL(string)
+      return true
+    } catch (_) {
+      return false
     }
   }
 
@@ -88,11 +116,25 @@ export function MetaGenerator() {
         description: `${type} copied to clipboard.`,
       })
     } catch (error) {
-      toast({
-        title: "Copy failed",
-        description: "Please try selecting and copying manually.",
-        variant: "destructive",
-      })
+      // Fallback for browsers that don't support clipboard API
+      const textArea = document.createElement("textarea")
+      textArea.value = text
+      document.body.appendChild(textArea)
+      textArea.select()
+      try {
+        document.execCommand("copy")
+        toast({
+          title: "Copied!",
+          description: `${type} copied to clipboard.`,
+        })
+      } catch (fallbackError) {
+        toast({
+          title: "Copy failed",
+          description: "Please try selecting and copying manually.",
+          variant: "destructive",
+        })
+      }
+      document.body.removeChild(textArea)
     }
   }
 
@@ -105,8 +147,25 @@ export function MetaGenerator() {
     const a = document.createElement("a")
     a.href = url
     a.download = "meta-tags.txt"
+    document.body.appendChild(a)
     a.click()
+    document.body.removeChild(a)
     URL.revokeObjectURL(url)
+
+    toast({
+      title: "Exported!",
+      description: "Meta tags exported to meta-tags.txt",
+    })
+  }
+
+  const resetForm = () => {
+    setUrl("")
+    setContent("")
+    setKeyword("")
+    setTone("professional")
+    setPageType("blog")
+    setGeneratedMeta(null)
+    setError(null)
   }
 
   return (
@@ -115,7 +174,12 @@ export function MetaGenerator() {
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold mb-4">AI Meta Tag Generator</h2>
           <p className="text-muted-foreground">Generate SEO-optimized meta titles and descriptions in seconds</p>
-          <div className="mt-4 text-sm text-muted-foreground">Generations used: {generationsUsed}/3 (free)</div>
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <span className="text-sm text-muted-foreground">Generations used: {generationsUsed}/3 (free)</span>
+            {generationsUsed >= 3 && (
+              <span className="text-xs bg-destructive/10 text-destructive px-2 py-1 rounded">Limit reached</span>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -128,7 +192,20 @@ export function MetaGenerator() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <Tabs value={inputType} onValueChange={(value) => setInputType(value as "url" | "manual")}>
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+                  <AlertCircle className="h-4 w-4" />
+                  {error}
+                </div>
+              )}
+
+              <Tabs
+                value={inputType}
+                onValueChange={(value) => {
+                  setInputType(value as "url" | "manual")
+                  setError(null)
+                }}
+              >
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="manual">Manual Input</TabsTrigger>
                   <TabsTrigger value="url">URL Analysis</TabsTrigger>
@@ -136,14 +213,19 @@ export function MetaGenerator() {
 
                 <TabsContent value="manual" className="space-y-4">
                   <div>
-                    <Label htmlFor="content">Page Content/Topic</Label>
+                    <Label htmlFor="content">Page Content/Topic *</Label>
                     <Textarea
                       id="content"
                       placeholder="Describe your page content, topic, or what it's about..."
                       value={content}
-                      onChange={(e) => setContent(e.target.value)}
+                      onChange={(e) => {
+                        setContent(e.target.value)
+                        setError(null)
+                      }}
                       className="min-h-[100px]"
+                      maxLength={1000}
                     />
+                    <div className="text-xs text-muted-foreground mt-1">{content.length}/1000 characters</div>
                   </div>
 
                   <div>
@@ -166,14 +248,20 @@ export function MetaGenerator() {
 
                 <TabsContent value="url" className="space-y-4">
                   <div>
-                    <Label htmlFor="url">Website URL</Label>
+                    <Label htmlFor="url">Website URL *</Label>
                     <Input
                       id="url"
                       type="url"
                       placeholder="https://example.com/page"
                       value={url}
-                      onChange={(e) => setUrl(e.target.value)}
+                      onChange={(e) => {
+                        setUrl(e.target.value)
+                        setError(null)
+                      }}
                     />
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Enter a complete URL starting with http:// or https://
+                    </div>
                   </div>
                 </TabsContent>
               </Tabs>
@@ -185,7 +273,9 @@ export function MetaGenerator() {
                   placeholder="e.g., SEO tools, web development"
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
+                  maxLength={100}
                 />
+                <div className="text-xs text-muted-foreground mt-1">{keyword.length}/100 characters</div>
               </div>
 
               <div>
@@ -203,24 +293,29 @@ export function MetaGenerator() {
                 </Select>
               </div>
 
-              <Button
-                onClick={handleGenerate}
-                disabled={isGenerating || generationsUsed >= 3}
-                className="w-full"
-                size="lg"
-              >
-                {isGenerating ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Generate Meta Tags
-                  </>
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleGenerate}
+                  disabled={isGenerating || generationsUsed >= 3}
+                  className="flex-1"
+                  size="lg"
+                >
+                  {isGenerating ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate Meta Tags
+                    </>
+                  )}
+                </Button>
+                <Button variant="outline" onClick={resetForm} disabled={isGenerating}>
+                  Reset
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -296,6 +391,7 @@ export function MetaGenerator() {
                 <div className="text-center py-12 text-muted-foreground">
                   <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>Your generated meta tags will appear here</p>
+                  <p className="text-sm mt-2">Fill in the form and click "Generate Meta Tags" to get started</p>
                 </div>
               )}
             </CardContent>
