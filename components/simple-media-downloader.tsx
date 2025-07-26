@@ -76,31 +76,65 @@ export function SimpleMediaDownloader() {
     setIsProcessing(true)
 
     try {
-      // Call our extraction API with platform and media type info
-      const response = await fetch("/api/simple-extract", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          url,
-          platform,
-          mediaType: platform === "instagram" ? instagramMediaType : "video",
-        }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        setResult(data.data)
-        const mediaCount = data.data.images ? data.data.images.length : 1
-        const mediaTypeText = data.data.type === "reel" ? "Reel" : data.data.type
-        toast({
-          title: "Media Found!",
-          description: `Successfully extracted ${mediaCount} ${mediaTypeText}${mediaCount > 1 ? "s" : ""} from ${platform}`,
+      // Special handling for Instagram Reels
+      if (platform === "instagram" && instagramMediaType === "reels" && url.includes("/reel/")) {
+        console.log("Using dedicated Instagram Reel API endpoint")
+        
+        const response = await fetch("/api/fetch-reel", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ url }),
         })
+
+        const data = await response.json()
+
+        if (data.success && data.url) {
+          const result: MediaResult = {
+            type: "video",
+            url: data.url,
+            thumbnail: data.thumbnail,
+            title: data.title || "Instagram Reel",
+            quality: data.quality || "High Quality",
+            duration: data.duration ? `${data.duration}s` : undefined,
+          }
+          
+          setResult(result)
+          toast({
+            title: "Instagram Reel Extracted Successfully!",
+            description: `${data.quality || "High Quality"} video is ready for download`,
+          })
+        } else {
+          throw new Error(data.error || "Failed to extract Instagram Reel")
+        }
       } else {
-        throw new Error(data.error || "Failed to extract media")
+        // Use existing simple-extract API for other content
+        const response = await fetch("/api/simple-extract", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url,
+            platform,
+            mediaType: platform === "instagram" ? instagramMediaType : "video",
+          }),
+        })
+
+        const data = await response.json()
+
+        if (response.ok && data.success) {
+          setResult(data.data)
+          const mediaCount = data.data.images ? data.data.images.length : 1
+          const mediaTypeText = data.data.type === "reel" ? "Reel" : data.data.type
+          toast({
+            title: "Media Found!",
+            description: `Successfully extracted ${mediaCount} ${mediaTypeText}${mediaCount > 1 ? "s" : ""} from ${platform}`,
+          })
+        } else {
+          throw new Error(data.error || "Failed to extract media")
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to extract media"
@@ -122,20 +156,44 @@ export function SimpleMediaDownloader() {
       }
 
       toast({
-        title: "Opening Media",
-        description: "Opening media in new tab...",
+        title: "Downloading Media",
+        description: "Fetching and downloading the media file...",
       })
 
-      window.open(downloadUrl, "_blank")
+      // Fetch the video file
+      const response = await fetch(downloadUrl)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch video: ${response.status}`)
+      }
+
+      const blob = await response.blob()
+      const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2)
+
+      // Create download link
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      
+      // Generate filename based on result title or default
+      const filename = result?.title 
+        ? `${result.title.replace(/[^a-zA-Z0-9]/g, "_")}.mp4`
+        : `instagram_reel_${Date.now()}.mp4`
+      
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
 
       toast({
-        title: "Media Opened",
-        description: "Right-click and save the media file if needed",
+        title: "Download Complete!",
+        description: `Video downloaded successfully (${fileSizeMB}MB)`,
       })
     } catch (error) {
+      console.error("Download error:", error)
       toast({
-        title: "Failed to Open",
-        description: "Please try copying the URL manually",
+        title: "Download Failed",
+        description: "Failed to download video. Please try copying the URL manually.",
         variant: "destructive",
       })
     } finally {
@@ -298,7 +356,7 @@ export function SimpleMediaDownloader() {
               )}
 
               {/* Platform Selection */}
-              <Tabs value={platform} onValueChange={handlePlatformChange}>
+              <Tabs value={platform} onValueChange={(value) => handlePlatformChange(value as "tiktok" | "instagram")}>
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="tiktok" className="flex items-center gap-2">
                     🎵 TikTok
@@ -509,7 +567,7 @@ export function SimpleMediaDownloader() {
                                 {downloadingIndex === index ? (
                                   <>
                                     <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                    Opening...
+                                    Downloading...
                                   </>
                                 ) : (
                                   <>
@@ -573,7 +631,7 @@ export function SimpleMediaDownloader() {
                       <div className="flex gap-2">
                         <Button onClick={() => handleDownloadSingle(result.url)} className="flex-1">
                           <Download className="mr-2 h-4 w-4" />
-                          Open {result.type === "reel" ? "Reel" : result.type}
+                          Download {result.type === "reel" ? "Reel" : result.type}
                         </Button>
                         <Button variant="outline" onClick={() => window.open(result.url, "_blank")}>
                           <ExternalLink className="mr-2 h-4 w-4" />

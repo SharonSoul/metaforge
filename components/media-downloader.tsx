@@ -73,20 +73,56 @@ export function MediaDownloader() {
     setIsExtracting(true)
 
     try {
-      const extractResult = await extractMedia({
-        platform,
-        url,
-        mediaType,
-      })
-
-      if (extractResult.success && extractResult.data) {
-        setResult(extractResult.data)
-        toast({
-          title: "Media Extracted Successfully!",
-          description: `${extractResult.data.quality || "Standard"} quality ${extractResult.data.type} is ready`,
+      // Special handling for Instagram Reels
+      if (platform === "instagram" && mediaType === "video" && url.includes("/reel/")) {
+        console.log("Using dedicated Instagram Reel API endpoint")
+        
+        const response = await fetch("/api/fetch-reel", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ url }),
         })
+
+        const data = await response.json()
+
+        if (data.success && data.url) {
+          const result: MediaResult = {
+            type: "video",
+            url: data.url,
+            thumbnail: data.thumbnail,
+            title: data.title || "Instagram Reel",
+            author: "Unknown",
+            duration: data.duration ? `${data.duration}s` : undefined,
+            quality: data.quality || "High Quality",
+          }
+          
+          setResult(result)
+          toast({
+            title: "Instagram Reel Extracted Successfully!",
+            description: `${data.quality || "High Quality"} video is ready for download`,
+          })
+        } else {
+          throw new Error(data.error || "Failed to extract Instagram Reel")
+        }
       } else {
-        throw new Error(extractResult.error || "Failed to extract media")
+        // Use existing extractMedia function for other content
+        const extractResult = await extractMedia({
+          platform,
+          url,
+          mediaType,
+        })
+
+        if (extractResult.success && extractResult.data) {
+          setResult(extractResult.data)
+          toast({
+            title: "Media Extracted Successfully!",
+            description: `${extractResult.data.quality || "Standard"} quality ${extractResult.data.type} is ready`,
+          })
+        } else {
+          throw new Error(extractResult.error || "Failed to extract media")
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to extract media"
@@ -209,7 +245,7 @@ export function MediaDownloader() {
     if (platform === "instagram") {
       switch (mediaType) {
         case "video":
-          return "https://www.instagram.com/p/ABC123xyz/"
+          return "https://www.instagram.com/reel/ABC123xyz/"
         case "image":
           return "https://www.instagram.com/p/ABC123xyz/"
         case "story":
@@ -226,6 +262,15 @@ export function MediaDownloader() {
 
   const getInstructions = () => {
     if (platform === "instagram") {
+      if (mediaType === "video") {
+        return [
+          "Go to Instagram and find the video/reel you want to download",
+          "Copy the post URL from your browser or share button",
+          "Paste the URL in the input field above",
+          "Select 'Videos' tab and click 'Extract Media'",
+          "Multiple services will be tried automatically for best results",
+        ]
+      }
       return [
         "Go to Instagram and find the post you want to download",
         "Copy the post URL from your browser or share button",
@@ -361,7 +406,10 @@ export function MediaDownloader() {
                 <div className="text-green-800 dark:text-green-200">
                   <p className="font-medium">Professional Service:</p>
                   <p className="text-xs mt-1">
-                    Uses TikWM API and reliable third-party services for consistent downloads with HD quality support.
+                    {platform === "instagram" && mediaType === "video" 
+                      ? "Uses BitLoader, SaveFrom.net, and multiple reliable services for Instagram video downloads with HD quality support."
+                      : "Uses TikWM API and reliable third-party services for consistent downloads with HD quality support."
+                    }
                   </p>
                 </div>
               </div>

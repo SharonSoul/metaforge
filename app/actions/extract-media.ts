@@ -88,6 +88,53 @@ async function extractInstagramMedia(url: string, mediaType: string) {
   try {
     const cleanUrl = url.replace(/\?.*$/, "").replace(/\/$/, "")
 
+    // For Instagram videos/reels, try BitLoader API first
+    if (mediaType === "video") {
+      console.log("Trying BitLoader API for Instagram video...")
+      const bitloaderResult = await useBitLoaderService(cleanUrl)
+      if (bitloaderResult.success) {
+        console.log("BitLoader API successful")
+        return bitloaderResult
+      }
+      console.log("BitLoader API failed:", bitloaderResult.error)
+
+      // Try SaveFrom.net API as fallback
+      console.log("Trying SaveFrom.net API for Instagram video...")
+      const savefromResult = await useSaveFromService(cleanUrl)
+      if (savefromResult.success) {
+        console.log("SaveFrom.net API successful")
+        return savefromResult
+      }
+      console.log("SaveFrom.net API failed:", savefromResult.error)
+
+      // Try RapidAPI Instagram Downloader as another fallback
+      console.log("Trying RapidAPI Instagram Downloader...")
+      const rapidapiResult = await useRapidAPIService(cleanUrl)
+      if (rapidapiResult.success) {
+        console.log("RapidAPI Instagram Downloader successful")
+        return rapidapiResult
+      }
+      console.log("RapidAPI Instagram Downloader failed:", rapidapiResult.error)
+
+      // Try SnapTik API as another fallback
+      console.log("Trying SnapTik API for Instagram video...")
+      const snaptikResult = await useSnapTikService(cleanUrl)
+      if (snaptikResult.success) {
+        console.log("SnapTik API successful")
+        return snaptikResult
+      }
+      console.log("SnapTik API failed:", snaptikResult.error)
+
+      // Try SSSTikTok API as another fallback (works for Instagram too)
+      console.log("Trying SSSTikTok API for Instagram video...")
+      const ssstiktokResult = await useSSSTikTokService(cleanUrl)
+      if (ssstiktokResult.success) {
+        console.log("SSSTikTok API successful")
+        return ssstiktokResult
+      }
+      console.log("SSSTikTok API failed:", ssstiktokResult.error)
+    }
+
     // Method 1: Meta Tag Extraction (Primary for Instagram)
     console.log("Trying Instagram meta tag extraction...")
     const metaResult = await extractFromMetaTags(cleanUrl, mediaType, "instagram")
@@ -179,10 +226,295 @@ async function useTikWMService(url: string, mediaType: string) {
   }
 }
 
+// BitLoader API Service - Reliable Instagram Video Downloader (NO TIMEOUT)
+async function useBitLoaderService(url: string) {
+  try {
+    const apiUrl = "https://www.bitloader.app/api/v1/download"
+    
+    // Simple fetch without any timeout or AbortController
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Origin": "https://www.bitloader.app",
+        "Referer": "https://www.bitloader.app/",
+      },
+      body: `url=${encodeURIComponent(url)}`,
+    })
+
+    if (!response.ok) {
+      throw new Error(`BitLoader API returned ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log("BitLoader API response:", data)
+
+    if (data.code === 0 && data.data) {
+      const videoData = data.data
+
+      // Get the best quality video URL
+      const videoUrl = videoData.url
+      const quality = "High Quality"
+
+      if (videoUrl) {
+        const result: MediaResult = {
+          type: "video",
+          url: videoUrl,
+          thumbnail: videoData.thumbnail,
+          title: videoData.title || "Instagram Video",
+          author: videoData.author || "Unknown",
+          duration: videoData.duration ? `${videoData.duration}s` : undefined,
+          quality: quality,
+          fileSize: videoData.size ? `${Math.round(videoData.size / 1024 / 1024)}MB` : undefined,
+        }
+
+        await logDownload("instagram", url, "video", result)
+        return { success: true, data: result }
+      }
+    }
+
+    throw new Error("No video data found in BitLoader response")
+  } catch (error) {
+    console.error("BitLoader API error:", error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "BitLoader service failed" 
+    }
+  }
+}
+
+// SaveFrom.net API Service - Alternative Instagram Video Downloader
+async function useSaveFromService(url: string) {
+  try {
+    const apiUrl = "https://savefrom.net/api/convert"
+    
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Origin": "https://savefrom.net",
+        "Referer": "https://savefrom.net/",
+      },
+      body: `url=${encodeURIComponent(url)}`,
+    })
+
+    if (!response.ok) {
+      throw new Error(`SaveFrom API returned ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log("SaveFrom API response:", data)
+
+    if (data.url && data.url.length > 0) {
+      const videoUrl = data.url[0].url
+      const quality = "High Quality"
+
+      if (videoUrl) {
+        const result: MediaResult = {
+          type: "video",
+          url: videoUrl,
+          thumbnail: data.thumb,
+          title: data.meta?.title || "Instagram Video",
+          author: data.meta?.author || "Unknown",
+          quality: quality,
+        }
+
+        await logDownload("instagram", url, "video", result)
+        return { success: true, data: result }
+      }
+    }
+
+    throw new Error("No video data found in SaveFrom response")
+  } catch (error) {
+    console.error("SaveFrom API error:", error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "SaveFrom service failed" 
+    }
+  }
+}
+
+// RapidAPI Instagram Downloader Service
+async function useRapidAPIService(url: string) {
+  try {
+    // Check if API key is configured
+    const apiKey = process.env.RAPIDAPI_KEY
+    if (!apiKey) {
+      throw new Error("RapidAPI key not configured")
+    }
+
+    const apiUrl = "https://instagram-downloader-download-instagram-videos-stories.p.rapidapi.com/index"
+    
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: {
+        "X-RapidAPI-Key": apiKey,
+        "X-RapidAPI-Host": "instagram-downloader-download-instagram-videos-stories.p.rapidapi.com",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`RapidAPI returned ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log("RapidAPI response:", data)
+
+    if (data.url) {
+      const result: MediaResult = {
+        type: "video",
+        url: data.url,
+        thumbnail: data.thumbnail,
+        title: data.title || "Instagram Video",
+        author: data.author || "Unknown",
+        quality: "High Quality",
+      }
+
+      await logDownload("instagram", url, "video", result)
+      return { success: true, data: result }
+    }
+
+    throw new Error("No video data found in RapidAPI response")
+  } catch (error) {
+    console.error("RapidAPI error:", error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "RapidAPI service failed" 
+    }
+  }
+}
+
+// SnapTik API Service - Reliable Instagram Video Downloader (NO TIMEOUT)
+async function useSnapTikService(url: string) {
+  try {
+    const apiUrl = "https://snaptik.app/v2/download"
+    
+    // Simple fetch without any timeout or AbortController
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Origin": "https://snaptik.app",
+        "Referer": "https://snaptik.app/",
+      },
+      body: `url=${encodeURIComponent(url)}`,
+    })
+
+    if (!response.ok) {
+      throw new Error(`SnapTik API returned ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log("SnapTik API response:", data)
+
+    if (data.code === 0 && data.data) {
+      const videoData = data.data
+
+      // Get the best quality video URL
+      const videoUrl = videoData.hdplay || videoData.play || videoData.wmplay
+      const quality = videoData.hdplay ? "HD (1080p)" : videoData.play ? "Standard (720p)" : "Watermarked"
+
+      if (videoUrl) {
+        const result: MediaResult = {
+          type: "video",
+          url: videoUrl,
+          thumbnail: videoData.cover,
+          title: videoData.title || "Instagram Video",
+          author: videoData.author?.unique_id || "Unknown",
+          duration: videoData.duration ? `${videoData.duration}s` : undefined,
+          quality: quality,
+          fileSize: videoData.size ? `${Math.round(videoData.size / 1024 / 1024)}MB` : undefined,
+        }
+
+        await logDownload("instagram", url, "video", result)
+        return { success: true, data: result }
+      }
+    }
+
+    throw new Error("No video data found in SnapTik response")
+  } catch (error) {
+    console.error("SnapTik API error:", error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "SnapTik service failed" 
+    }
+  }
+}
+
+// SSSTikTok API Service - Reliable TikTok Downloader (NO TIMEOUT)
+async function useSSSTikTokService(url: string) {
+  try {
+    const apiUrl = "https://ssstik.io/download"
+    
+    // Simple fetch without any timeout or AbortController
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Origin": "https://ssstik.io",
+        "Referer": "https://ssstik.io/",
+      },
+      body: `url=${encodeURIComponent(url)}`,
+    })
+
+    if (!response.ok) {
+      throw new Error(`SSSTikTok API returned ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log("SSSTikTok API response:", data)
+
+    if (data.code === 0 && data.data) {
+      const videoData = data.data
+
+      // Get the best quality video URL
+      const videoUrl = videoData.hdplay || videoData.play || videoData.wmplay
+      const quality = videoData.hdplay ? "HD (1080p)" : videoData.play ? "Standard (720p)" : "Watermarked"
+
+      if (videoUrl) {
+        const result: MediaResult = {
+          type: "video",
+          url: videoUrl,
+          thumbnail: videoData.cover,
+          title: videoData.title || "Instagram Video",
+          author: videoData.author?.unique_id || "Unknown",
+          duration: videoData.duration ? `${videoData.duration}s` : undefined,
+          quality: quality,
+          fileSize: videoData.size ? `${Math.round(videoData.size / 1024 / 1024)}MB` : undefined,
+        }
+
+        await logDownload("instagram", url, "video", result)
+        return { success: true, data: result }
+      }
+    }
+
+    throw new Error("No video data found in SSSTikTok response")
+  } catch (error) {
+    console.error("SSSTikTok API error:", error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "SSSTikTok service failed" 
+    }
+  }
+}
+
 // Meta Tag Extraction - Works for both platforms (NO TIMEOUT)
 async function extractFromMetaTags(url: string, mediaType: string, platform: string) {
   try {
-    const headers = {
+    const headers: Record<string, string> = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.9",
@@ -257,13 +589,18 @@ async function extractFromMetaTags(url: string, mediaType: string, platform: str
 // HTML Pattern Matching - Advanced regex patterns (NO TIMEOUT)
 async function extractFromHTMLPatterns(url: string, mediaType: string, platform: string) {
   try {
-    const headers = {
+    const headers: Record<string, string> = {
       "User-Agent": platform === "tiktok" 
         ? "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
         : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.5",
-      "Referer": platform === "tiktok" ? "https://www.tiktok.com/" : "https://www.instagram.com/",
+    }
+
+    if (platform === "tiktok") {
+      headers["Referer"] = "https://www.tiktok.com/"
+    } else {
+      headers["Referer"] = "https://www.instagram.com/"
     }
 
     // Simple fetch without timeout
