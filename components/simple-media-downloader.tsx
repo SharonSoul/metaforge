@@ -105,6 +105,18 @@ export function SimpleMediaDownloader() {
             title: "Instagram Reel Extracted Successfully!",
             description: `${data.quality || "High Quality"} video is ready for download`,
           })
+          
+          // Smooth scroll to result section
+          setTimeout(() => {
+            const resultSection = document.getElementById("extraction-result")
+            if (resultSection) {
+              resultSection.scrollIntoView({ 
+                behavior: "smooth", 
+                block: "start",
+                inline: "nearest"
+              })
+            }
+          }, 100)
         } else {
           throw new Error(data.error || "Failed to extract Instagram Reel")
         }
@@ -132,6 +144,18 @@ export function SimpleMediaDownloader() {
             title: "Media Found!",
             description: `Successfully extracted ${mediaCount} ${mediaTypeText}${mediaCount > 1 ? "s" : ""} from ${platform}`,
           })
+          
+          // Smooth scroll to result section
+          setTimeout(() => {
+            const resultSection = document.getElementById("extraction-result")
+            if (resultSection) {
+              resultSection.scrollIntoView({ 
+                behavior: "smooth", 
+                block: "start",
+                inline: "nearest"
+              })
+            }
+          }, 100)
         } else {
           throw new Error(data.error || "Failed to extract media")
         }
@@ -160,10 +184,10 @@ export function SimpleMediaDownloader() {
         description: "Fetching and downloading the media file...",
       })
 
-      // Fetch the video file
+      // Fetch the video/image file
       const response = await fetch(downloadUrl)
       if (!response.ok) {
-        throw new Error(`Failed to fetch video: ${response.status}`)
+        throw new Error(`Failed to fetch media: ${response.status}`)
       }
 
       const blob = await response.blob()
@@ -174,10 +198,21 @@ export function SimpleMediaDownloader() {
       const link = document.createElement("a")
       link.href = url
       
-      // Generate filename based on result title or default
-      const filename = result?.title 
-        ? `${result.title.replace(/[^a-zA-Z0-9]/g, "_")}.mp4`
-        : `instagram_reel_${Date.now()}.mp4`
+      // Generate filename based on result title and type
+      let filename = ""
+      if (result?.images && index !== undefined) {
+        // Carousel image
+        filename = result?.title 
+          ? `${result.title.replace(/[^a-zA-Z0-9]/g, "_")}_${index + 1}.jpg`
+          : `instagram_carousel_${index + 1}_${Date.now()}.jpg`
+      } else {
+        // Single video/image
+        const isVideo = result?.type === "video" || result?.type === "reel"
+        const extension = isVideo ? "mp4" : "jpg"
+        filename = result?.title 
+          ? `${result.title.replace(/[^a-zA-Z0-9]/g, "_")}.${extension}`
+          : `instagram_${result?.type || "media"}_${Date.now()}.${extension}`
+      }
       
       link.download = filename
       document.body.appendChild(link)
@@ -187,13 +222,13 @@ export function SimpleMediaDownloader() {
 
       toast({
         title: "Download Complete!",
-        description: `Video downloaded successfully (${fileSizeMB}MB)`,
+        description: `Media downloaded successfully (${fileSizeMB}MB)`,
       })
     } catch (error) {
       console.error("Download error:", error)
       toast({
         title: "Download Failed",
-        description: "Failed to download video. Please try copying the URL manually.",
+        description: "Failed to download media. Please try copying the URL manually.",
         variant: "destructive",
       })
     } finally {
@@ -210,43 +245,59 @@ export function SimpleMediaDownloader() {
 
     try {
       toast({
-        title: "Preparing Download",
-        description: "Creating zip file with all images...",
+        title: "Starting Downloads",
+        description: `Downloading ${result.images.length} images one by one...`,
       })
 
-      const response = await fetch("/api/download-zip", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          images: result.images,
-          title: result.title || "Instagram Carousel",
-        }),
-      })
+      // Download all images one by one automatically
+      for (let i = 0; i < result.images.length; i++) {
+        const imageUrl = result.images[i]
+        
+        try {
+          // Fetch the image
+          const response = await fetch(imageUrl)
+          if (!response.ok) {
+            throw new Error(`Failed to fetch image ${i + 1}: ${response.status}`)
+          }
 
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement("a")
-        link.href = url
-        link.download = `${result.title?.replace(/[^a-zA-Z0-9]/g, "_") || "instagram_carousel"}.zip`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        URL.revokeObjectURL(url)
+          const blob = await response.blob()
+          const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2)
 
-        toast({
-          title: "Download Complete",
-          description: `Downloaded ${result.images.length} images as zip file`,
-        })
-      } else {
-        throw new Error("Failed to create zip file")
+          // Create download link
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement("a")
+          link.href = url
+          
+          // Generate filename based on result title and image number
+          const filename = result?.title 
+            ? `${result.title.replace(/[^a-zA-Z0-9]/g, "_")}_${i + 1}.jpg`
+            : `instagram_carousel_${i + 1}_${Date.now()}.jpg`
+          
+          link.download = filename
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          URL.revokeObjectURL(url)
+
+          // Small delay between downloads to avoid overwhelming the browser
+          if (i < result.images.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500))
+          }
+        } catch (error) {
+          console.error(`Failed to download image ${i + 1}:`, error)
+          // Continue with next image even if one fails
+        }
       }
-    } catch (error) {
+
       toast({
-        title: "Zip Download Failed",
-        description: "Try downloading images individually",
+        title: "All Downloads Complete!",
+        description: `Successfully downloaded ${result.images.length} images`,
+      })
+    } catch (error) {
+      console.error("Download all error:", error)
+      toast({
+        title: "Download Failed",
+        description: "Some images failed to download. Try downloading individually.",
         variant: "destructive",
       })
     } finally {
@@ -476,7 +527,7 @@ export function SimpleMediaDownloader() {
           </Card>
 
           {/* Result Section */}
-          <Card>
+          <Card id="extraction-result">
             <CardHeader>
               <CardTitle>Extraction Result</CardTitle>
             </CardHeader>
@@ -529,12 +580,12 @@ export function SimpleMediaDownloader() {
                           {downloadingAll ? (
                             <>
                               <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                              Creating Zip...
+                              Downloading All...
                             </>
                           ) : (
                             <>
-                              <Archive className="mr-2 h-3 w-3" />
-                              Download All as Zip
+                              <Download className="mr-2 h-3 w-3" />
+                              Download All ({result.images.length})
                             </>
                           )}
                         </Button>
